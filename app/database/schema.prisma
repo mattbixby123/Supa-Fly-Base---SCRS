@@ -7,20 +7,105 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  notes     Note[]
+model user {
+  id        String       @id @default(cuid())
+  username  String       @unique
+  email     String       @unique
+  password  String
+  profile   userProfile?
+  reviews   review[]
+  likes     like[]
+  comments  comment[]
+  wishlist  wishlist?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 }
 
-model Note {
-  id        String   @id @default(cuid())
-  title     String
-  body      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model userProfile {
+  id        Int     @id @default(autoincrement())
+  bio       String?
+  avatarUrl String?
+  userId    String  @unique
+  user      user    @relation(fields: [userId], references: [id])
+}
+
+model product {
+  id          Int          @id @default(autoincrement())
+  name        String
+  brand       brand        @relation(fields: [brandId], references: [id])
+  brandId     Int
+  description String?
+  reviews     review[]
+  tags        productTag[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  like        like[]
+  comment     comment[]
+  wishlist    wishlist?    @relation(fields: [wishlistId], references: [id])
+  wishlistId  Int?
+}
+
+model brand {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  products product[]
+}
+
+model review {
+  id        Int       @id @default(autoincrement())
+  rating    Int       @default(0)
+  comment   String
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      user      @relation(fields: [userId], references: [id])
+  productId Int
+  product   product   @relation(fields: [productId], references: [id])
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  like      like[]
+  comments  comment[]
+}
+
+model tag {
+  id       Int          @id @default(autoincrement())
+  name     String       @unique
+  products productTag[]
+}
+
+model productTag {
+  productId Int
+  tagId     Int
+  product   product @relation(fields: [productId], references: [id])
+  tag       tag     @relation(fields: [tagId], references: [id])
+
+  @@id([productId, tagId])
+}
+
+model like {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  user      user     @relation(fields: [userId], references: [id])
+  reviewId  Int?
+  productId Int?
+  review    review?  @relation(fields: [reviewId], references: [id])
+  product   product? @relation(fields: [productId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model comment {
+  id        Int      @id @default(autoincrement())
+  content   String
+  userId    String
+  user      user     @relation(fields: [userId], references: [id])
+  reviewId  Int?
+  productId Int?
+  review    review?  @relation(fields: [reviewId], references: [id])
+  product   product? @relation(fields: [productId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model wishlist {
+  id       Int       @id @default(autoincrement())
+  userId   String    @unique
+  user     user      @relation(fields: [userId], references: [id])
+  products product[]
 }
