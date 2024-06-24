@@ -1,10 +1,10 @@
 import { useEffect } from "react";
-
 import { json, redirect } from "@remix-run/node";
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { useActionData, useFetcher, useSearchParams } from "@remix-run/react";
 import { parseFormAny } from "react-zorm";
 import { z } from "zod";
+import bcrypt from "bcrypt"; // Import bcrypt for password hashing
 
 import { supabaseClient } from "~/integrations/supabase";
 import {
@@ -20,7 +20,7 @@ import { assertIsPost, safeRedirect } from "~/utils";
 export async function loader({ request }: LoaderFunctionArgs) {
 	const authSession = await getAuthSession(request);
 
-	if (authSession) return redirect("/notes");
+	if (authSession) return redirect("/userProfile");
 
 	return json({});
 }
@@ -33,6 +33,7 @@ export async function action({ request }: ActionFunctionArgs) {
 		.object({
 			refreshToken: z.string(),
 			redirectTo: z.string().optional(),
+			password: z.string().min(8),
 		})
 		.safeParseAsync(parseFormAny(formData));
 
@@ -45,11 +46,10 @@ export async function action({ request }: ActionFunctionArgs) {
 		);
 	}
 
-	const { redirectTo, refreshToken } = result.data;
-	const safeRedirectTo = safeRedirect(redirectTo, "/notes");
+	const { redirectTo, refreshToken, password } = result.data;
+	const safeRedirectTo = safeRedirect(redirectTo, "/userProfile");
 
 	// We should not trust what is sent from the client
-	// https://github.com/rphlmr/supa-fly-stack/issues/45
 	const authSession = await refreshAccessToken(refreshToken);
 
 	if (!authSession) {
@@ -61,7 +61,7 @@ export async function action({ request }: ActionFunctionArgs) {
 		);
 	}
 
-	// user have an account, skip creation part and just commit session
+	// User already has an account, skip creation part and just commit session
 	if (await getUserByEmail(authSession.email)) {
 		return redirect(safeRedirectTo, {
 			headers: {
@@ -72,8 +72,13 @@ export async function action({ request }: ActionFunctionArgs) {
 		});
 	}
 
-	// first time sign in, let's create a brand-new User row in supabase
-	const user = await tryCreateUser(authSession);
+	// First-time sign-in, let's create a brand-new User row in the database
+	const hashedPassword = await bcrypt.hash(password, 10);
+	const user = await tryCreateUser({
+		email: authSession.email,
+		userId: authSession.userId,
+		password: hashedPassword, // Ensure this is securely handled
+	});
 
 	if (!user) {
 		return json(
@@ -97,26 +102,18 @@ export default function LoginCallback() {
 	const error = useActionData<typeof action>();
 	const fetcher = useFetcher();
 	const [searchParams] = useSearchParams();
-	const redirectTo = searchParams.get("redirectTo") ?? "/notes";
+	const redirectTo = searchParams.get("redirectTo") ?? "/userProfile";
 
 	useEffect(() => {
 		const {
 			data: { subscription },
 		} = supabaseClient.auth.onAuthStateChange((event, supabaseSession) => {
 			if (event === "SIGNED_IN") {
-				// supabase sdk has ability to read url fragment that contains your token after third party provider redirects you here
-				// this fragment url looks like https://.....#access_token=evxxxxxxxx&refresh_token=xxxxxx, and it's not readable server-side (Oauth security)
-				// supabase auth listener gives us a user session, based on what it founds in this fragment url
-				// we can't use it directly, client-side, because we can't access sessionStorage from here
-
-				// we should not trust what's happen client side
-				// so, we only pick the refresh token, and let's back-end getting user session from it
 				const refreshToken = supabaseSession?.refresh_token;
 
 				if (!refreshToken) return;
 
 				const formData = new FormData();
-
 				formData.append("refreshToken", refreshToken);
 				formData.append("redirectTo", redirectTo);
 
@@ -125,7 +122,7 @@ export default function LoginCallback() {
 		});
 
 		return () => {
-			// prevent memory leak. Listener stays alive 👨‍🎤
+			// Prevent memory leak. Listener stays alive 👨‍🎤
 			subscription.unsubscribe();
 		};
 	}, [fetcher, redirectTo]);

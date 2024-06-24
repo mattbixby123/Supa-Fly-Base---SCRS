@@ -22,7 +22,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	const t = await i18nextServer.getFixedT(request, "auth");
 	const title = t("register.changePassword");
 
-	if (authSession) return redirect("/notes");
+	if (authSession) return redirect("/userProfile");
 
 	return json({ title });
 }
@@ -88,7 +88,7 @@ export async function action({ request }: ActionFunctionArgs) {
 		);
 	}
 
-	return redirect("/notes", {
+	return redirect("/userProfile", {
 		headers: {
 			"Set-Cookie": await commitAuthSession(request, {
 				authSession,

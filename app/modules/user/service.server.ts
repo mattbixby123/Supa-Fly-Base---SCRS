@@ -1,4 +1,4 @@
-import type { User } from "~/database";
+import type { user } from "~/database";
 import { db } from "~/database";
 import type { AuthSession } from "~/modules/auth";
 import {
@@ -6,33 +6,41 @@ import {
 	signInWithEmail,
 	deleteAuthAccount,
 } from "~/modules/auth";
+import bcrypt from "bcrypt";
 
-export async function getUserByEmail(email: User["email"]) {
+export async function getUserByEmail(email: user["email"]) {
 	return db.user.findUnique({ where: { email: email.toLowerCase() } });
 }
 
+
 async function createUser({
-	email,
-	userId,
-}: Pick<AuthSession, "userId" | "email">) {
-	return db.user
-		.create({
-			data: {
-				email,
-				id: userId,
-			},
-		})
-		.then((user) => user)
-		.catch(() => null);
+  email,
+  userId,
+  password,
+}: Pick<AuthSession, "userId" | "email"> & { password: string; }) {
+  const hashedPassword = await bcrypt.hash(password, 10);
+  return db.user
+    .create({
+      data: {
+        email,
+        id: userId,
+        username: "",
+        password: hashedPassword,
+      },
+    })
+    .then((user) => user)
+    .catch(() => null);
 }
 
 export async function tryCreateUser({
 	email,
 	userId,
-}: Pick<AuthSession, "userId" | "email">) {
+	password,
+}: Pick<AuthSession, "userId" | "email"> & { password: string; }) {
 	const user = await createUser({
 		userId,
 		email,
+		password,
 	});
 
 	// user account created and have a session but unable to store in User table
@@ -63,7 +71,11 @@ export async function createUserAccount(
 		return null;
 	}
 
-	const user = await tryCreateUser(authSession);
+	const user = await tryCreateUser({ 
+		email, 
+		userId: authSession.userId, 
+		password 
+	});
 
 	if (!user) return null;
 
