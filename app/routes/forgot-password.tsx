@@ -14,7 +14,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	const t = await i18nextServer.getFixedT(request, "auth");
 	const title = t("login.forgotPassword");
 
-	if (authSession) return redirect("/notes");
+	if (authSession) return redirect("/userProfile");
 
 	return json({ title });
 }
