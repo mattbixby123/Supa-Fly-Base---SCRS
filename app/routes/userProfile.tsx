@@ -4,7 +4,7 @@ import { json } from "@remix-run/node";
 import { useLoaderData, Link } from "@remix-run/react";
 
 import { LogoutButton, requireAuthSession } from "../modules/auth";
-import { getUserProfile } from "../modules/userProfile/service.server.ts";
+import { getUserProfile } from "../modules/userProfile/service.server";
 import { notFound } from "../utils/http.server";
 
 export async function loader({ request }: LoaderFunctionArgs) {
